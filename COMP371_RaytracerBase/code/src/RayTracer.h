@@ -1,5 +1,6 @@
 #include <json.hpp>
 #include "Sphere.h"
+#include "Triangle.h"
 #include "Ray.h"
 
 class RayTracer {

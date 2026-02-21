@@ -1,7 +1,8 @@
+#pragma once
 #include "Ray.h"
 
 class Geometry {
     public:
-        virtual bool tryIntersectRay(const Ray &r) = 0;
-        virtual ~Geometry();
+        virtual bool tryIntersectRay(Ray &r, double& t) = 0;
+        virtual ~Geometry() {};
 };

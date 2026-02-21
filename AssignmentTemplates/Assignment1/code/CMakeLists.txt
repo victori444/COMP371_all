@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8)
 project(Assignment1) # The name of your choice for the project comes here
 
-#add_compile_options(-DSTUDENT_SOLUTION)
+add_compile_options(-DSTUDENT_SOLUTION)
 
 
 IF(WIN32)
