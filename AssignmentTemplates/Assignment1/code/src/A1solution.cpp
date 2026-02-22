@@ -31,31 +31,19 @@ struct Mesh {
     size_t indexCount;
 };
 
+// expand indexed mesh into flat arrays with bary coords
+struct FlatMesh {
+    std::vector<glm::vec3> vertices;
+    std::vector<glm::vec3> normals;
+    std::vector<glm::vec3> baryCoords;
+};
+
 struct ShaderPrograms {
     unsigned int phongShader;
     unsigned int flatShader;
     unsigned int circleShader;
     unsigned int voronoiShader;
 };
-
-// =============================== //
-//       HELPER DECLARATIONS       //
-// =============================== //
-
-// from capsule 2
-// const char* getVertexShaderSource();
-// const char* getFragmentShaderSource();
-// int compileAndLinkShaders(const char* vertexShaderSource, const char* fragmentShaderSource);
-
-// // run() broken down
-// SceneData loadSceneFromFile(const std::string& filename);
-// GLFWwindow* initOpenGL(int width, int height);
-// ShaderPrograms initShaders();
-// Mesh createMesh(const std::vector<glm::vec3>& vertices, std::vector<glm::vec3>& normals, const std::vector<unsigned int>& indices);
-// void setMatrices(unsigned int shaderProgram, const glm::mat4& modelViewMatrix, const glm::mat4& projectionMatrix);
-// void mainLoop(GLFWwindow* window, ShaderPrograms& shaders, Mesh& mesh, const SceneData& scene);
-// void handleInput(GLFWwindow& window, unsigned int& activeShader, ShaderPrograms& shaders);
-
 
 // =============================== //
 //        HELPER FUNCTIONS         //
@@ -87,6 +75,58 @@ std::vector<glm::vec3> calculateNormals(const std::vector<glm::vec3>& vertices, 
     }
 
     return normals;
+}
+
+FlatMesh createFlatMesh(const SceneData& scene) {
+    FlatMesh flat;
+    static const glm::vec3 bary[3] = {
+        {1,0,0}, {0,1,0}, {0,0,1}
+    };
+    for (size_t i = 0; i < scene.indices.size(); i += 3) {
+        for (int j = 0; j < 3; j++) {
+            unsigned int idx = scene.indices[i + j];
+            flat.vertices.push_back(scene.vertices[idx]);
+            flat.normals.push_back(scene.normals[idx]);
+            flat.baryCoords.push_back(bary[j]);
+        }
+    }
+    return flat;
+}
+
+Mesh createMeshWithBary(const FlatMesh& flat) {
+    Mesh mesh;
+    mesh.indexCount = flat.vertices.size(); // no EBO needed
+
+    glGenVertexArrays(1, &mesh.VAO);
+    glBindVertexArray(mesh.VAO);
+
+    // Positions
+    unsigned int vbo;
+    glGenBuffers(1, &vbo);
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, flat.vertices.size() * sizeof(glm::vec3), flat.vertices.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    // Normals
+    unsigned int nbo;
+    glGenBuffers(1, &nbo);
+    glBindBuffer(GL_ARRAY_BUFFER, nbo);
+    glBufferData(GL_ARRAY_BUFFER, flat.normals.size() * sizeof(glm::vec3), flat.normals.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glEnableVertexAttribArray(1);
+
+    // Barycentric coords
+    unsigned int bbo;
+    glGenBuffers(1, &bbo);
+    glBindBuffer(GL_ARRAY_BUFFER, bbo);
+    glBufferData(GL_ARRAY_BUFFER, flat.baryCoords.size() * sizeof(glm::vec3), flat.baryCoords.data(), GL_STATIC_DRAW);
+    glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), (void*)0);
+    glEnableVertexAttribArray(2);
+
+    glBindVertexArray(0);
+    mesh.EBO = 0;
+    return mesh;
 }
 
 // =============================== //
@@ -167,7 +207,10 @@ GLFWwindow* initOpenGL(int width, int height) {
         glfwTerminate();
         return nullptr;
     }
-    glViewport(0, 0, width, height);
+    int fbWidth, fbHeight;
+    glfwGetFramebufferSize(window, &fbWidth, &fbHeight);
+    glViewport(0, 0, fbWidth, fbHeight);
+    // glViewport(0, 0, width, height);
     glEnable(GL_DEPTH_TEST);
 
     return window;
@@ -472,6 +515,151 @@ const char* getFlatFragmentShader()
 }
 
 // =============================== //
+//             CIRCLE              //
+// =============================== //
+
+const char* getCircleVertexShader() {
+    return
+    "#version 330 core\n"
+    "layout (location = 0) in vec3 aPos;\n"
+    "layout (location = 1) in vec3 aNormal;\n"
+    "layout (location = 2) in vec3 aBaryCoord;\n"
+
+    "uniform mat4 modelViewMatrix;\n"
+    "uniform mat4 projectionMatrix;\n"
+
+    "out vec3 FragPos;\n"
+    "out vec3 Normal;\n"
+    "out vec3 BaryCoord;\n"
+
+    "void main()\n"
+    "{\n"
+    "   FragPos = vec3(modelViewMatrix * vec4(aPos, 1.0));\n"
+    "   Normal = mat3(transpose(inverse(modelViewMatrix))) * aNormal;\n"
+    "   BaryCoord = aBaryCoord;\n"
+
+    "   gl_Position = projectionMatrix * vec4(FragPos, 1.0);\n"
+    "}\n";
+}
+
+const char* getCircleFragmentShader() {
+    return
+    "#version 330 core\n"
+    "in vec3 FragPos;\n"
+    "in vec3 Normal;\n"
+    "in vec3 BaryCoord;\n"
+
+    "out vec4 FragColor;\n"
+
+    "uniform vec3 lightPos;\n"
+    "uniform vec3 viewPos;\n"
+    "uniform vec3 lightColor;\n"
+
+    "void main()\n"
+    "{\n"
+    "   vec3 norm = normalize(Normal);\n"
+    "   vec3 lightDir = normalize(lightPos - FragPos);\n"
+    "   vec3 viewDir = normalize(viewPos - FragPos);\n"
+    "   vec3 reflectDir = reflect(-lightDir, norm);\n"
+
+    "   float diff = max(dot(norm, lightDir), 0.0);\n"
+    "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), 5.0);\n"
+
+    "   vec3 diffuseColor = vec3(1.0, 0.5, 0.5);\n"
+    "   vec3 ambientColor = vec3(0.1, 0.05, 0.05);\n"
+    "   vec3 specularColor = vec3(0.3, 0.3, 0.3);\n"
+
+    "   vec3 center = vec3(1.0/3.0);\n"
+    "   float radius = 0.40;\n"
+    "   float dist = length(BaryCoord - center);\n"
+
+    "   if (dist < radius) {\n"
+    "       diffuseColor = vec3(0.5, 0.5, 1.0);\n"
+    "       ambientColor = vec3(0.05, 0.05, 0.1);\n"
+    "       specularColor = vec3(0.0);\n"
+    "   }\n"
+
+    "   vec3 ambient = ambientColor * lightColor;\n"
+    "   vec3 diffuse = diff * diffuseColor * lightColor;\n"
+    "   vec3 specular = spec * specularColor * lightColor;\n"
+
+    "   vec3 result = ambient + diffuse + specular;\n"
+    "   FragColor = vec4(result, 1.0);\n"
+    "}\n";
+}
+
+// =============================== //
+//             VORONOI             //
+// =============================== //
+
+const char* getVoronoiVertexShader() {
+    return
+    "#version 330 core\n"
+    "layout (location = 0) in vec3 aPos;\n"
+    "layout (location = 1) in vec3 aNormal;\n"
+    "layout (location = 2) in vec3 aBaryCoord;\n"
+
+    "uniform mat4 modelViewMatrix;\n"
+    "uniform mat4 projectionMatrix;\n"
+
+    "out vec3 FragPos;\n"
+    "out vec3 Normal;\n"
+    "out vec3 BaryCoord;\n"
+
+    "void main()\n"
+    "{\n"
+    "   FragPos = vec3(modelViewMatrix * vec4(aPos, 1.0));\n"
+    "   Normal = mat3(transpose(inverse(modelViewMatrix))) * aNormal;\n"
+    "   BaryCoord = aBaryCoord;\n"
+    "   gl_Position = projectionMatrix * vec4(FragPos, 1.0);\n"
+    "}\n";
+}
+
+const char* getVoronoiFragmentShader() {
+    return
+    "#version 330 core\n"
+    "in vec3 FragPos;\n"
+    "in vec3 Normal;\n"
+    "in vec3 BaryCoord;\n"
+
+    "out vec4 FragColor;\n"
+
+    "uniform vec3 lightPos;\n"
+    "uniform vec3 viewPos;\n"
+    "uniform vec3 lightColor;\n"
+
+    "void main()\n"
+    "{\n"
+    // Determine closest vertex by largest barycentric component
+    "   vec3 diffuseColor;\n"
+    "   if (BaryCoord.x >= BaryCoord.y && BaryCoord.x >= BaryCoord.z) {\n"
+    "       diffuseColor = vec3(1.0, 0.5, 0.5);\n"
+    "   } else if (BaryCoord.y >= BaryCoord.z) {\n"
+    "       diffuseColor = vec3(0.5, 1.0, 0.5);\n"
+    "   } else {\n"
+    "       diffuseColor = vec3(0.5, 0.5, 1.0);\n"
+    "   }\n"
+
+    "   vec3 ambientColor = vec3(0.1, 0.05, 0.05);\n"
+    "   vec3 specularColor = vec3(0.3, 0.3, 0.3);\n"
+
+    "   vec3 norm = normalize(Normal);\n"
+    "   vec3 lightDir = normalize(lightPos - FragPos);\n"
+    "   vec3 viewDir = normalize(viewPos - FragPos);\n"
+    "   vec3 reflectDir = reflect(-lightDir, norm);\n"
+
+    "   float diff = max(dot(norm, lightDir), 0.0);\n"
+    "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), 5.0);\n"
+
+    "   vec3 ambient  = ambientColor * lightColor;\n"
+    "   vec3 diffuse  = diff * diffuseColor * lightColor;\n"
+    "   vec3 specular = spec * specularColor * lightColor;\n"
+
+    "   FragColor = vec4(ambient + diffuse + specular, 1.0);\n"
+    "}\n";
+}
+
+// =============================== //
 // ========== MAIN RUN =========== //
 // =============================== //
 
@@ -482,74 +670,80 @@ void A1solution::run(const std::string& filename) {
     if (!window) return;
 
     // Compile and link shaders
-    // int shaderProgram = compileAndLinkShaders(getVertexShaderSource(), getFragmentShaderSource());
-    int phongShader = compileAndLinkShaders(getPhongVertexShader(), getPhongFragmentShader());
-    int flatShader = compileAndLinkShaders(getFlatVertexShader(), getFlatFragmentShader());
-    
-    int activeShader = phongShader;
+    int phongShader  = compileAndLinkShaders(getPhongVertexShader(),  getPhongFragmentShader());
+    int flatShader   = compileAndLinkShaders(getFlatVertexShader(),   getFlatFragmentShader());
+    int circleShader = compileAndLinkShaders(getCircleVertexShader(), getCircleFragmentShader());
+    int voronoiShader = compileAndLinkShaders(getVoronoiVertexShader(), getVoronoiFragmentShader());
 
-    // create mesh
+    std::vector<int> shaders = {phongShader, flatShader, circleShader, voronoiShader};
+    int shaderIndex = 0;
+    int activeShader = shaders[shaderIndex];
+
+    // Create meshes
     Mesh mesh = createMesh(scene.vertices, scene.normals, scene.indices);
+    FlatMesh flat = createFlatMesh(scene);
+    Mesh circleMesh = createMeshWithBary(flat);
 
-    // debug_gl(0);
-
-    // =============================== //
-    //           SET UNIFORMS          //
-    // =============================== //
-    
-    glUseProgram(activeShader);
-    // GLint modelLoc = glGetUniformLocation(shaderProgram, "modelViewMatrix");
-    // GLint projLoc = glGetUniformLocation(shaderProgram, "projectionMatrix");
-    // glUniformMatrix4fv(modelLoc, 1, GL_FALSE, &scene.modelViewMatrix[0][0]);
-    // glUniformMatrix4fv(projLoc, 1, GL_FALSE, &scene.projectionMatrix[0][0]);
-
-    // Phong uniforms
-    // glUniform3f(glGetUniformLocation(phongShader, "lightPos"), 5.0f, 5.0f, 5.0f);
-    // glUniform3f(glGetUniformLocation(phongShader, "viewPos"), 0.0f, 0.0f, 5.0f);
-    // glUniform3f(glGetUniformLocation(phongShader, "lightColor"), 1.0f, 1.0f, 1.0f);
-    // glUniform3f(glGetUniformLocation(phongShader, "objectColor"), 1.0f, 0.5f, 0.3f);
+    // Key state tracking (for toggle, not hold)
+    bool sKeyWasPressed = false;
+    bool wKeyWasPressed = false;
+    bool wireframe = false;
 
     // =============================== //
     //            MAIN LOOP            //
     // =============================== //
-    while(!glfwWindowShouldClose(window))
+    while (!glfwWindowShouldClose(window))
     {
+        glfwPollEvents();
 
-        // User input
-        if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS)
-            activeShader = phongShader;
-        if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS)
-            activeShader = flatShader;
-        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-            glfwSetWindowShouldClose(window, true);
+        // Toggle shader with 's'
+        bool sKeyDown = glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS;
+        if (sKeyDown && !sKeyWasPressed) {
+            shaderIndex = (shaderIndex + 1) % shaders.size();
+            activeShader = shaders[shaderIndex];
         }
+        sKeyWasPressed = sKeyDown;
 
-        // Each frame, reset color of each pixel to glClearColor
+        // Toggle wireframe with 'w'
+        bool wKeyDown = glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS;
+        if (wKeyDown && !wKeyWasPressed) {
+            wireframe = !wireframe;
+            glPolygonMode(GL_FRONT_AND_BACK, wireframe ? GL_LINE : GL_FILL);
+        }
+        wKeyWasPressed = wKeyDown;
+
+        // Escape to close
+        if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+            glfwSetWindowShouldClose(window, true);
+
+        // Clear
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(activeShader);
 
-        GLint modelLoc = glGetUniformLocation(activeShader, "modelViewMatrix");
-        GLint projLoc = glGetUniformLocation(activeShader, "projectionMatrix");
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, &scene.modelViewMatrix[0][0]);
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, &scene.projectionMatrix[0][0]);
+        // =============================== //
+        //           SET UNIFORMS          //
+        // =============================== //
 
-        // Lighting uniforms
-        glUniform3f(glGetUniformLocation(activeShader, "lightPos"), 5.0f, 5.0f, 5.0f);
-        glUniform3f(glGetUniformLocation(activeShader, "viewPos"), 0.0f, 0.0f, 5.0f);
-        glUniform3f(glGetUniformLocation(activeShader, "lightColor"), 1.0f, 1.0f, 1.0f);
+        glUniformMatrix4fv(glGetUniformLocation(activeShader, "modelViewMatrix"),  1, GL_FALSE, &scene.modelViewMatrix[0][0]);
+        glUniformMatrix4fv(glGetUniformLocation(activeShader, "projectionMatrix"), 1, GL_FALSE, &scene.projectionMatrix[0][0]);
+
+        glUniform3f(glGetUniformLocation(activeShader, "lightPos"),    5.0f, 5.0f, 5.0f);
+        glUniform3f(glGetUniformLocation(activeShader, "viewPos"),     0.0f, 0.0f, 5.0f);
+        glUniform3f(glGetUniformLocation(activeShader, "lightColor"),  1.0f, 1.0f, 1.0f);
         glUniform3f(glGetUniformLocation(activeShader, "objectColor"), 1.0f, 0.5f, 0.3f);
 
-        glBindVertexArray(mesh.VAO); // seeing as we only have a single VAO there's no need to bind it every time, but we'll do so to keep things a bit more organized
+        // Draw
+        if (activeShader == circleShader || activeShader == voronoiShader) {
+            glBindVertexArray(circleMesh.VAO);
+            glDrawArrays(GL_TRIANGLES, 0, circleMesh.indexCount);
+        } else {
+            glBindVertexArray(mesh.VAO);
+            glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
+        }
 
-        glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
         glfwSwapBuffers(window);
-
-        // Detect inputs
-        glfwPollEvents();
-
     }
-    // Shutdown GLFW
+
     glfwTerminate();
     return;
-
 }
