@@ -444,28 +444,63 @@ const char* getPhongFragmentShader()
     "uniform vec3 lightPos;\n"
     "uniform vec3 viewPos;\n"
     "uniform vec3 lightColor;\n"
-    "uniform vec3 objectColor;\n"
 
     "void main()\n"
     "{\n"
-    "   float ambientStrength = 0.2;\n"
-    "   vec3 ambient = ambientStrength * lightColor;\n"
+    "   vec3 diffuseColor  = vec3(1.0, 0.5, 0.5);\n"
+    "   vec3 ambientColor  = vec3(0.1, 0.05, 0.05);\n"
+    "   vec3 specularColor = vec3(0.3, 0.3, 0.3);\n"
 
     "   vec3 norm = normalize(Normal);\n"
     "   vec3 lightDir = normalize(lightPos - FragPos);\n"
-    "   float diff = max(dot(norm, lightDir), 0.0);\n"
-    "   vec3 diffuse = diff * lightColor;\n"
-
-    "   float specularStrength = 0.5;\n"
-    "   vec3 viewDir = normalize(viewPos - FragPos);\n"
+    "   vec3 viewDir  = normalize(viewPos - FragPos);\n"
     "   vec3 reflectDir = reflect(-lightDir, norm);\n"
-    "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);\n"
-    "   vec3 specular = specularStrength * spec * lightColor;\n"
 
-    "   vec3 result = (ambient + diffuse + specular) * objectColor;\n"
-    "   FragColor = vec4(result, 1.0);\n"
+    "   float diff = max(dot(norm, lightDir), 0.0);\n"
+    "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), 5.0);\n"
+
+    "   vec3 ambient  = ambientColor * lightColor;\n"
+    "   vec3 diffuse  = diff * diffuseColor * lightColor;\n"
+    "   vec3 specular = spec * specularColor * lightColor;\n"
+
+    "   FragColor = vec4(ambient + diffuse + specular, 1.0);\n"
     "}\n";
 }
+
+// const char* getPhongFragmentShader()
+// {
+//     return
+//     "#version 330 core\n"
+//     "in vec3 FragPos;\n"
+//     "in vec3 Normal;\n"
+
+//     "out vec4 FragColor;\n"
+
+//     "uniform vec3 lightPos;\n"
+//     "uniform vec3 viewPos;\n"
+//     "uniform vec3 lightColor;\n"
+//     "uniform vec3 objectColor;\n"
+
+//     "void main()\n"
+//     "{\n"
+//     "   float ambientStrength = 0.2;\n"
+//     "   vec3 ambient = ambientStrength * lightColor;\n"
+
+//     "   vec3 norm = normalize(Normal);\n"
+//     "   vec3 lightDir = normalize(lightPos - FragPos);\n"
+//     "   float diff = max(dot(norm, lightDir), 0.0);\n"
+//     "   vec3 diffuse = diff * lightColor;\n"
+
+//     "   float specularStrength = 0.5;\n"
+//     "   vec3 viewDir = normalize(viewPos - FragPos);\n"
+//     "   vec3 reflectDir = reflect(-lightDir, norm);\n"
+//     "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32);\n"
+//     "   vec3 specular = specularStrength * spec * lightColor;\n"
+
+//     "   vec3 result = (ambient + diffuse + specular) * objectColor;\n"
+//     "   FragColor = vec4(result, 1.0);\n"
+//     "}\n";
+// }
 
 // =============================== //
 //             FLAT                //
@@ -492,13 +527,12 @@ const char* getFlatFragmentShader()
 {
     return
     "#version 330 core\n"
-
     "in vec3 FragPos;\n"
     "out vec4 FragColor;\n"
 
     "uniform vec3 lightPos;\n"
+    "uniform vec3 viewPos;\n"
     "uniform vec3 lightColor;\n"
-    "uniform vec3 objectColor;\n"
 
     "void main()\n"
     "{\n"
@@ -506,13 +540,50 @@ const char* getFlatFragmentShader()
     "   vec3 dy = dFdy(FragPos);\n"
     "   vec3 normal = normalize(cross(dx, dy));\n"
 
-    "   vec3 lightDir = normalize(lightPos - FragPos);\n"
-    "   float diff = max(dot(normal, lightDir), 0.0);\n"
+    "   vec3 diffuseColor  = vec3(1.0, 0.5, 0.5);\n"
+    "   vec3 ambientColor  = vec3(0.1, 0.05, 0.05);\n"
+    "   vec3 specularColor = vec3(0.3, 0.3, 0.3);\n"
 
-    "   vec3 color = diff * lightColor * objectColor;\n"
-    "   FragColor = vec4(color, 1.0);\n"
+    "   vec3 lightDir = normalize(lightPos - FragPos);\n"
+    "   vec3 viewDir  = normalize(viewPos - FragPos);\n"
+    "   vec3 reflectDir = reflect(-lightDir, normal);\n"
+
+    "   float diff = max(dot(normal, lightDir), 0.0);\n"
+    "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), 5.0);\n"
+
+    "   vec3 ambient  = ambientColor * lightColor;\n"
+    "   vec3 diffuse  = diff * diffuseColor * lightColor;\n"
+    "   vec3 specular = spec * specularColor * lightColor;\n"
+
+    "   FragColor = vec4(ambient + diffuse + specular, 1.0);\n"
     "}\n";
 }
+
+// const char* getFlatFragmentShader()
+// {
+//     return
+//     "#version 330 core\n"
+
+//     "in vec3 FragPos;\n"
+//     "out vec4 FragColor;\n"
+
+//     "uniform vec3 lightPos;\n"
+//     "uniform vec3 lightColor;\n"
+//     "uniform vec3 objectColor;\n"
+
+//     "void main()\n"
+//     "{\n"
+//     "   vec3 dx = dFdx(FragPos);\n"
+//     "   vec3 dy = dFdy(FragPos);\n"
+//     "   vec3 normal = normalize(cross(dx, dy));\n"
+
+//     "   vec3 lightDir = normalize(lightPos - FragPos);\n"
+//     "   float diff = max(dot(normal, lightDir), 0.0);\n"
+
+//     "   vec3 color = diff * lightColor * objectColor;\n"
+//     "   FragColor = vec4(color, 1.0);\n"
+//     "}\n";
+// }
 
 // =============================== //
 //             CIRCLE              //
@@ -557,36 +628,81 @@ const char* getCircleFragmentShader() {
 
     "void main()\n"
     "{\n"
-    "   vec3 norm = normalize(Normal);\n"
-    "   vec3 lightDir = normalize(lightPos - FragPos);\n"
-    "   vec3 viewDir = normalize(viewPos - FragPos);\n"
-    "   vec3 reflectDir = reflect(-lightDir, norm);\n"
-
-    "   float diff = max(dot(norm, lightDir), 0.0);\n"
-    "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), 5.0);\n"
-
-    "   vec3 diffuseColor = vec3(1.0, 0.5, 0.5);\n"
-    "   vec3 ambientColor = vec3(0.1, 0.05, 0.05);\n"
+    "   vec3 diffuseColor  = vec3(1.0, 0.5, 0.5);\n"
+    "   vec3 ambientColor  = vec3(0.1, 0.05, 0.05);\n"
     "   vec3 specularColor = vec3(0.3, 0.3, 0.3);\n"
 
     "   vec3 center = vec3(1.0/3.0);\n"
     "   float radius = 0.40;\n"
     "   float dist = length(BaryCoord - center);\n"
 
-    "   if (dist < radius) {\n"
-    "       diffuseColor = vec3(0.5, 0.5, 1.0);\n"
-    "       ambientColor = vec3(0.05, 0.05, 0.1);\n"
+    "   if (dist >= radius) {\n"
+    "       diffuseColor  = vec3(0.5, 0.5, 1.0);\n"
+    "       ambientColor  = vec3(0.05, 0.05, 0.1);\n"
     "       specularColor = vec3(0.0);\n"
     "   }\n"
 
-    "   vec3 ambient = ambientColor * lightColor;\n"
-    "   vec3 diffuse = diff * diffuseColor * lightColor;\n"
+    "   vec3 norm = normalize(Normal);\n"
+    "   vec3 lightDir = normalize(lightPos - FragPos);\n"
+    "   vec3 viewDir  = normalize(viewPos - FragPos);\n"
+    "   vec3 reflectDir = reflect(-lightDir, norm);\n"
+
+    "   float diff = max(dot(norm, lightDir), 0.0);\n"
+    "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), 5.0);\n"
+
+    "   vec3 ambient  = ambientColor * lightColor;\n"
+    "   vec3 diffuse  = diff * diffuseColor * lightColor;\n"
     "   vec3 specular = spec * specularColor * lightColor;\n"
 
-    "   vec3 result = ambient + diffuse + specular;\n"
-    "   FragColor = vec4(result, 1.0);\n"
+    "   FragColor = vec4(ambient + diffuse + specular, 1.0);\n"
     "}\n";
 }
+
+// const char* getCircleFragmentShader() {
+//     return
+//     "#version 330 core\n"
+//     "in vec3 FragPos;\n"
+//     "in vec3 Normal;\n"
+//     "in vec3 BaryCoord;\n"
+
+//     "out vec4 FragColor;\n"
+
+//     "uniform vec3 lightPos;\n"
+//     "uniform vec3 viewPos;\n"
+//     "uniform vec3 lightColor;\n"
+
+//     "void main()\n"
+//     "{\n"
+//     "   vec3 norm = normalize(Normal);\n"
+//     "   vec3 lightDir = normalize(lightPos - FragPos);\n"
+//     "   vec3 viewDir = normalize(viewPos - FragPos);\n"
+//     "   vec3 reflectDir = reflect(-lightDir, norm);\n"
+
+//     "   float diff = max(dot(norm, lightDir), 0.0);\n"
+//     "   float spec = pow(max(dot(viewDir, reflectDir), 0.0), 5.0);\n"
+
+//     "   vec3 diffuseColor = vec3(1.0, 0.5, 0.5);\n"
+//     "   vec3 ambientColor = vec3(0.1, 0.05, 0.05);\n"
+//     "   vec3 specularColor = vec3(0.3, 0.3, 0.3);\n"
+
+//     "   vec3 center = vec3(1.0/3.0);\n"
+//     "   float radius = 0.40;\n"
+//     "   float dist = length(BaryCoord - center);\n"
+
+//     "   if (dist < radius) {\n"
+//     "       diffuseColor = vec3(0.5, 0.5, 1.0);\n"
+//     "       ambientColor = vec3(0.05, 0.05, 0.1);\n"
+//     "       specularColor = vec3(0.0);\n"
+//     "   }\n"
+
+//     "   vec3 ambient = ambientColor * lightColor;\n"
+//     "   vec3 diffuse = diff * diffuseColor * lightColor;\n"
+//     "   vec3 specular = spec * specularColor * lightColor;\n"
+
+//     "   vec3 result = ambient + diffuse + specular;\n"
+//     "   FragColor = vec4(result, 1.0);\n"
+//     "}\n";
+// }
 
 // =============================== //
 //             VORONOI             //
@@ -727,10 +843,12 @@ void A1solution::run(const std::string& filename) {
         glUniformMatrix4fv(glGetUniformLocation(activeShader, "modelViewMatrix"),  1, GL_FALSE, &scene.modelViewMatrix[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(activeShader, "projectionMatrix"), 1, GL_FALSE, &scene.projectionMatrix[0][0]);
 
-        glUniform3f(glGetUniformLocation(activeShader, "lightPos"),    5.0f, 5.0f, 5.0f);
-        glUniform3f(glGetUniformLocation(activeShader, "viewPos"),     0.0f, 0.0f, 5.0f);
+        // glUniform3f(glGetUniformLocation(activeShader, "lightPos"),    5.0f, 5.0f, 5.0f);
+        // glUniform3f(glGetUniformLocation(activeShader, "viewPos"),     0.0f, 0.0f, 5.0f);
+        glUniform3f(glGetUniformLocation(activeShader, "lightPos"), 0.0f, 0.0f, 0.0f);
+        glUniform3f(glGetUniformLocation(activeShader, "viewPos"),  0.0f, 0.0f, 0.0f);
         glUniform3f(glGetUniformLocation(activeShader, "lightColor"),  1.0f, 1.0f, 1.0f);
-        glUniform3f(glGetUniformLocation(activeShader, "objectColor"), 1.0f, 0.5f, 0.3f);
+        // glUniform3f(glGetUniformLocation(activeShader, "objectColor"), 1.0f, 0.5f, 0.3f);
 
         // Draw
         if (activeShader == circleShader || activeShader == voronoiShader) {
