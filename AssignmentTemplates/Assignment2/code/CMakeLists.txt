@@ -3,6 +3,12 @@ project(Assignment2) # The name of your choice for the project comes here
 
 #add_compile_options(-DSTUDENT_SOLUTION)
 
+add_definitions(
+	-DTW_STATIC
+	-DTW_NO_LIB_PRAGMA
+	-DTW_NO_DIRECT3D
+	-DGLEW_STATIC
+)
 
 IF(WIN32)
 # set stuff for windows
