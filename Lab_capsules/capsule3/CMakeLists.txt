@@ -47,7 +47,7 @@ set(CMAKE_PREFIX_PATH
 find_package(OpenGL REQUIRED COMPONENTS OpenGL)
 find_package(GLEW REQUIRED)
 find_package(glfw3 REQUIRED
-    HINTS /encs/pkg/glfw-3.3.4/root # ENCS installation of glfw
+    HINTS /encs/pkg/glfw-3.4/root # ENCS installation of glfw
 )
 
 set(ALL_LIBS
