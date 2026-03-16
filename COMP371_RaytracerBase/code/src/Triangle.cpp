@@ -7,6 +7,12 @@ Triangle::Triangle(const Eigen::Vector3d a, const Eigen::Vector3d b, const Eigen
     v3 = c;
 }
 
+Eigen::Vector3d Triangle::getNormal(const Eigen::Vector3d& p) {
+    Eigen::Vector3d edge1 = v2 - v1;
+    Eigen::Vector3d edge2 = v3 - v1;
+    return edge1.cross(edge2).normalized();
+}
+
 // TEST IF RAY INTERSECTS WITH SPHERE
 bool Triangle::tryIntersectRay(Ray& r, double& t) {
     

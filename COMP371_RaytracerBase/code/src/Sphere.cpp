@@ -6,6 +6,10 @@ Sphere::Sphere(const Eigen::Vector3d centerIn, float radiusIn){
     radius = radiusIn;
 }
 
+Eigen::Vector3d Sphere::getNormal(const Eigen::Vector3d& p) {
+    return (p - center).normalized();
+}
+
 // TEST IF RAY INTERSECTS WITH SPHERE
 bool Sphere::tryIntersectRay(Ray &r, double& t) {
     

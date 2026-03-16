@@ -12,8 +12,9 @@ class Triangle : public Geometry{
         Eigen::Vector3d getP1() const { return v1; }
         Eigen::Vector3d getP2() const { return v2; }
         Eigen::Vector3d getP3() const { return v3; }
+        Eigen::Vector3d getNormal(const Eigen::Vector3d& p) override;
         
-        bool tryIntersectRay(Ray& r, double& t);
+        bool tryIntersectRay(Ray& r, double& t) override;
 
     private:
         Eigen::Vector3d v1, v2, v3;
