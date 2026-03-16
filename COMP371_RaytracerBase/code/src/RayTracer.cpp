@@ -107,7 +107,7 @@ void RayTracer::run() {
             for (auto& obj : objects) {
                 double t;
                 if (obj->tryIntersectRay(ray, t)) {
-                    if (t < closestT) {
+                    if (t > EPS && t < closestT) {
                         closestT = t;
                         pixelColour = hitColour; // set colour if intersection
                     }
