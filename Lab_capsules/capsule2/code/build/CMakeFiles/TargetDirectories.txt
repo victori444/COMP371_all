@@ -1,0 +1,3 @@
+/Users/victoriahoang/GitProjects/COMP371_all/Lab_capsules/capsule2/code/build/CMakeFiles/capsule02.dir
+/Users/victoriahoang/GitProjects/COMP371_all/Lab_capsules/capsule2/code/build/CMakeFiles/edit_cache.dir
+/Users/victoriahoang/GitProjects/COMP371_all/Lab_capsules/capsule2/code/build/CMakeFiles/rebuild_cache.dir

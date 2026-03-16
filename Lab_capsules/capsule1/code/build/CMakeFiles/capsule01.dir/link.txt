@@ -1,0 +1,1 @@
+/usr/bin/c++ -g -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names CMakeFiles/capsule01.dir/capsule01.cpp.o -o capsule01  -framework OpenGL /opt/local/lib/libGLEW.dylib /opt/local/lib/libglfw.3.4.dylib -framework OpenGL
