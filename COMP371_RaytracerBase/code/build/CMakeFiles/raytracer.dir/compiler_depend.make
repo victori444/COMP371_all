@@ -7891,7 +7891,6 @@ CMakeFiles/raytracer.dir/src/RayTracer.cpp.o: /Users/victoriahoang/GitProjects/C
   /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/external/json.hpp \
   /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/external/simpleppm.h \
   /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/Geometry.h \
-  /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/Hit.h \
   /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/Light.h \
   /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/Ray.h \
   /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/RayTracer.h \
@@ -10403,8 +10402,6 @@ CMakeFiles/raytracer.dir/src/Triangle.cpp.o: /Users/victoriahoang/GitProjects/CO
   /opt/local/include/eigen3/Eigen/src/misc/Kernel.h \
   /opt/local/include/eigen3/Eigen/src/misc/RealSvd2x2.h
 
-
-/Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/Hit.h:
 
 /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/RayTracer.cpp:
 

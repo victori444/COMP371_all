@@ -949,7 +949,6 @@ CMakeFiles/raytracer.dir/src/RayTracer.cpp.o: \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/include/c++/v1/valarray \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/include/c++/v1/cassert \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/include/assert.h \
-  /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/include/_assert.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/include/_static_assert.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/include/c++/v1/istream \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/include/c++/v1/ostream \
@@ -1178,7 +1177,6 @@ CMakeFiles/raytracer.dir/src/RayTracer.cpp.o: \
   /opt/local/include/eigen3/Eigen/src/Eigenvalues/./RealQZ.h \
   /opt/local/include/eigen3/Eigen/src/Eigenvalues/MatrixBaseEigenvalues.h \
   /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/Triangle.h \
-  /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/Hit.h \
   /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/Light.h \
   /Users/victoriahoang/GitProjects/COMP371_all/COMP371_RaytracerBase/code/src/../external/simpleppm.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX15.2.sdk/usr/include/c++/v1/fstream \

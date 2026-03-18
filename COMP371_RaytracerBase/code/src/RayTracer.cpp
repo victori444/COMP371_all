@@ -1,6 +1,5 @@
 #define _USE_MATH_DEFINES
 #include "RayTracer.h"
-#include "Hit.h"
 #include "Light.h"
 #include "../external/simpleppm.h"
 #include <iostream>
@@ -82,19 +81,37 @@ void RayTracer::run() {
 
     // LIGHT //
 
-    std::vector<Light> lights;
+    std::vector<std::shared_ptr<Light>> lights;
 
     for (auto& sceneLight : sourceFile["light"]) {
         if (sceneLight["type"] == "point") {
-
-            Light light;
-            light.position = jsonToVector(sceneLight["centre"]);
-            light.id = jsonToVector(sceneLight["id"]);
-            light.is = jsonToVector(sceneLight["is"]);
+            if (sceneLight.value("use", true) == false) continue;
+            auto light = std::make_shared<PointLight>();
+            light->position = jsonToVector(sceneLight["centre"]);
+            light->id = jsonToVector(sceneLight["id"]);
+            light->is = jsonToVector(sceneLight["is"]);
             lights.push_back(light);
+        } else if (sceneLight["type"] == "area") {
+            Eigen::Vector3d p1 = jsonToVector(sceneLight["p1"]);
+            Eigen::Vector3d p2 = jsonToVector(sceneLight["p2"]);
+            Eigen::Vector3d p3 = jsonToVector(sceneLight["p3"]);
+            Eigen::Vector3d p4 = jsonToVector(sceneLight["p4"]);
 
+            bool useCenter = sceneLight.value("usecenter", false);
+
+            if (useCenter) {
+                // treat as point light at center of area light
+                auto light = std::make_shared<PointLight>();
+                light->position = (p1 + p2 + p3 + p4) / 4.0;
+                light->id = jsonToVector(sceneLight["id"]);
+                light->is = jsonToVector(sceneLight["is"]);
+                lights.push_back(light);
+            } else {
+                // for assignment 5 (area light)
+                continue;
+            }
         }
-    }
+}
 
     // OUTPUT PARAMETERS //
 
@@ -181,8 +198,8 @@ void RayTracer::run() {
 
                     // loop through lights
                     for (auto& light : lights) {
-                        Eigen::Vector3d L = (light.position - hitPoint).normalized();
-                        double lightDistance = (light.position - hitPoint).norm();
+                        Eigen::Vector3d L = light->getDirection(hitPoint);
+                        double lightDistance = light->getDistance(hitPoint);
 
                         // SHADOW
                         Ray shadowRay(L, hitPoint + EPS * N);
@@ -202,15 +219,15 @@ void RayTracer::run() {
 
                         // DIFFUSE LIGHT
 
-                        bool twoSidedRendering = output.value("twosiderender", true);
+                        bool twoSidedRendering = output.value("twosiderender", false);
                         double NdotL = twoSidedRendering ? std::abs(N.dot(L)) : std::max(0.0, N.dot(L));
-                        Eigen::Vector3d diffuse = hitObject->kd * NdotL * hitObject->dc.cwiseProduct(light.id);
+                        Eigen::Vector3d diffuse = hitObject->kd * NdotL * hitObject->dc.cwiseProduct(light->id);
 
                         // SPECULAR
 
                         Eigen::Vector3d H = (L + V).normalized();
                         double NdotH = std::max(0.0, N.dot(H));
-                        Eigen::Vector3d specular = hitObject->ks * pow(NdotH, hitObject->pc) * hitObject->sc.cwiseProduct(light.is);
+                        Eigen::Vector3d specular = hitObject->ks * pow(NdotH, hitObject->pc) * hitObject->sc.cwiseProduct(light->is);
                         colour += diffuse + specular;
                     }
 
