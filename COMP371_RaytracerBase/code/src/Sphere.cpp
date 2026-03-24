@@ -6,6 +6,8 @@ Sphere::Sphere(const Eigen::Vector3d centerIn, float radiusIn){
     radius = radiusIn;
 }
 
+// N = (P - C) / || P - C
+// p = point on sphere surface, C = center of sphere
 Eigen::Vector3d Sphere::getNormal(const Eigen::Vector3d& p) {
     return (p - center).normalized();
 }

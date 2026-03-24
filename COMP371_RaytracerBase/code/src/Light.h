@@ -37,9 +37,7 @@ class AreaLight : public Light {
         Eigen::Vector3d p1, p2, p3, p4;
         Eigen::Vector3d centre;
 
-        AreaLight() {
-            // centre is computed from corners
-        }
+        AreaLight() {}
 
         Eigen::Vector3d getPosition() const override { return centre; }
 

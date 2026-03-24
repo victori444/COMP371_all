@@ -42,15 +42,17 @@ void RayTracer::run() {
 
             auto sphere = std::make_shared<Sphere>(centre, radius);
 
-            // sphere material
-            sphere->ka = g["ka"];
-            sphere->kd = g["kd"];
-            sphere->ks = g["ks"];
-            sphere->pc = g["pc"];
+            // MATERIALS // 
+            // coefficients
+            sphere->ka = g["ka"]; // ambient coefficient
+            sphere->kd = g["kd"]; // diffuse coefficient
+            sphere->ks = g["ks"]; // specular coefficient
+            sphere->pc = g["pc"]; // shiny (phong coefficient)
 
-            sphere->ac = jsonToVector(g["ac"]);
-            sphere->dc = jsonToVector(g["dc"]);
-            sphere->sc = jsonToVector(g["sc"]);
+            // colours
+            sphere->ac = jsonToVector(g["ac"]); // ambient colour
+            sphere->dc = jsonToVector(g["dc"]); // diffuse colour
+            sphere->sc = jsonToVector(g["sc"]); // specular colour
 
             objects.push_back(sphere);
         }
@@ -65,6 +67,7 @@ void RayTracer::run() {
             auto triangle2 = std::make_shared<Triangle>(p1, p3, p4);
 
             for (auto triangle : {triangle1, triangle2}) {
+                // MATERIALS //
                 triangle->ka = g["ka"];
                 triangle->kd = g["kd"];
                 triangle->ks = g["ks"];
@@ -84,14 +87,21 @@ void RayTracer::run() {
     std::vector<std::shared_ptr<Light>> lights;
 
     for (auto& sceneLight : sourceFile["light"]) {
+
         if (sceneLight["type"] == "point") {
-            if (sceneLight.value("use", true) == false) continue;
+
+            if (sceneLight.value("use", true) == false) {
+                continue;
+            }
+            // Instantiate light object
             auto light = std::make_shared<PointLight>();
             light->position = jsonToVector(sceneLight["centre"]);
-            light->id = jsonToVector(sceneLight["id"]);
-            light->is = jsonToVector(sceneLight["is"]);
+            light->id = jsonToVector(sceneLight["id"]); // intensity of diffuse
+            light->is = jsonToVector(sceneLight["is"]); // intensity of specular
             lights.push_back(light);
+
         } else if (sceneLight["type"] == "area") {
+
             Eigen::Vector3d p1 = jsonToVector(sceneLight["p1"]);
             Eigen::Vector3d p2 = jsonToVector(sceneLight["p2"]);
             Eigen::Vector3d p3 = jsonToVector(sceneLight["p3"]);
@@ -100,9 +110,9 @@ void RayTracer::run() {
             bool useCenter = sceneLight.value("usecenter", false);
 
             if (useCenter) {
-                // treat as point light at center of area light
+                // treat as point light where it is = to center of area light
                 auto light = std::make_shared<PointLight>();
-                light->position = (p1 + p2 + p3 + p4) / 4.0;
+                light->position = (p1 + p2 + p3 + p4) / 4.0; // center of area light
                 light->id = jsonToVector(sceneLight["id"]);
                 light->is = jsonToVector(sceneLight["is"]);
                 lights.push_back(light);
@@ -161,6 +171,7 @@ void RayTracer::run() {
                 double screenY = (1 - 2 * v) * planeHeight / 2; // inverts y for img coordinates
 
                 // determine direction of ray from camera through pixel on img plane, construct ray
+                // direction d = forward + (x * right) + (y * up)
                 Eigen::Vector3d direction = (forward + (screenX * right) + (screenY * trueUp)).normalized();
                 Ray ray(direction, cameraCentre);
 
@@ -172,27 +183,32 @@ void RayTracer::run() {
                 Geometry* hitObject = nullptr;
 
                 // object intersection
+                // For each object, computes Ray: P(t) = O + tD
                 for (auto& obj : objects) {
                     double t;
                     if (obj->tryIntersectRay(ray, t)) {
                         if (t > EPS && t < closestT) {
                             closestT = t;
-                            // pixelColour = hitColour; // set colour if intersection
                             hitObject = obj.get();
                             hit = true;
                         }
                     }
                 } 
 
+                // SHADING //
                 // final pixel colour
                 if (hit) {
 
+                    // P = O + tD
                     Eigen::Vector3d hitPoint = cameraCentre + closestT * direction;
+
+                    // normal + view direction
                     Eigen::Vector3d N = hitObject->getNormal(hitPoint).normalized();
                     Eigen::Vector3d V = (cameraCentre - hitPoint).normalized();
                     Eigen::Vector3d colour(0,0,0);
 
                     // AMBIENT LIGHT
+                    // I = ka * ac * ai
                     Eigen::Vector3d ambientIntensity = jsonToVector(output["ai"]);
                     colour += hitObject->ka * hitObject->ac.cwiseProduct(ambientIntensity);
 
@@ -201,7 +217,8 @@ void RayTracer::run() {
                         Eigen::Vector3d L = light->getDirection(hitPoint);
                         double lightDistance = light->getDistance(hitPoint);
 
-                        // SHADOW
+                        // SHADOWS
+                        // shoot ray towards light and check if something blocks it
                         Ray shadowRay(L, hitPoint + EPS * N);
                         bool inShadow = false;
                         
@@ -218,12 +235,15 @@ void RayTracer::run() {
                         if (inShadow) continue;
 
                         // DIFFUSE LIGHT
-
+                        // I = kd * (N dot L) * dc * id
                         bool twoSidedRendering = output.value("twosiderender", false);
                         double NdotL = twoSidedRendering ? std::abs(N.dot(L)) : std::max(0.0, N.dot(L));
                         Eigen::Vector3d diffuse = hitObject->kd * NdotL * hitObject->dc.cwiseProduct(light->id);
 
                         // SPECULAR
+                        // Using Blinn-Phong:
+                            // H = (L + V) / || L + V ||
+                            // I = ks * (N dot H)^pc * sc * is
 
                         Eigen::Vector3d H = (L + V).normalized();
                         double NdotH = std::max(0.0, N.dot(H));
@@ -231,6 +251,7 @@ void RayTracer::run() {
                         colour += diffuse + specular;
                     }
 
+                    // final colour clamping to keep values within [0,1]
                     pixelColour = colour;
                     pixelColour = pixelColour.cwiseMax(0.0).cwiseMin(1.0);
                 }
