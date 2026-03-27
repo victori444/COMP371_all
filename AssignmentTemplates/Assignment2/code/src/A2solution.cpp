@@ -23,6 +23,7 @@ struct SceneData {
     // Raw mesh geometry
     int width;
     int height;
+    // define triangles (3 indices / vertex)
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec3> normals;
     std::vector<unsigned int> indices;
@@ -34,13 +35,13 @@ struct SceneData {
 * EBO (Element Buffer Object) : triangle indices s.t. vertices can be shared
 */ 
 struct Mesh {
-    unsigned int VAO;
-    unsigned int VBO;
-    unsigned int EBO;
+    unsigned int VAO; // configuration
+    unsigned int VBO; // vertex data
+    unsigned int EBO; // indices for shared vertices
     size_t indexCount;
 };
  
-/* FLAT MESH: expanded mesh 
+/* FLAT MESH: expanded mesh  (CIRCLE + VORONOI)
 * Each triangle gets its own 3 private copies of vertices instead of sharing
 */ 
 struct FlatMesh {
@@ -77,27 +78,6 @@ struct PickingState {
 // =============================== //
 //        HELPER FUNCTIONS         //
 // =============================== //
- 
-/**
- * Raw file data (positions only)
-         │
-         ▼
-  calculateNormals()
-  → computes smooth per-vertex normals from face geometry
-         │
-         ▼
-  createFlatMesh()
-  → expands shared vertices into per-triangle private copies
-  → attaches barycentric coords + all 3 triangle corners to each vertex
-         │
-         ▼
-  createMeshWithBary()
-  → uploads all 6 data streams to the GPU into a VAO
-         │
-         ▼
-  Circle/Voronoi shaders can now compute incircles and Voronoi regions
-  because every fragment knows its triangle's full geometry
- */
  
 /**
  * CALCULATE NORMALS
@@ -220,30 +200,28 @@ Mesh createMeshWithBary(const FlatMesh& flat) {
 // ===================================== //
 //          ASSIGNMENT 2 HELPERS         //
 // ===================================== //
- 
-static glm::vec3 projectToScreen(
-    const glm::vec3& v,
-    const glm::mat4& modelView,
-    const glm::mat4& proj,
-    int W,   // framebuffer width  (pixels)
-    int H    // framebuffer height (pixels)
-) {
-    glm::vec4 clip = proj * modelView * glm::vec4(v, 1.0f);
-    glm::vec3 ndc = glm::vec3(clip) / clip.w;
+
+// Convert 3D -> clip space -> normalized -> map to screen pixels
+// W: framebuffer width  (pixels) 
+// H: framebuffer height (pixels)
+static glm::vec3 projectToScreen(const glm::vec3& v, const glm::mat4& modelView, const glm::mat4& proj, int W, int H) {
+
+    glm::vec4 clip = proj * modelView * glm::vec4(v, 1.0f); // clip space
+    glm::vec3 ndc = glm::vec3(clip) / clip.w; // NDC
+    // NDC (-1, 1) -> screen coordinates
     float sx = (ndc.x + 1.0f) * 0.5f * (float)W;
     float sy = (ndc.y + 1.0f) * 0.5f * (float)H;
  
     return glm::vec3(sx, sy, ndc.z);
+
 }
  
-static glm::vec3 barycentricCoords(
-    const glm::vec2& P,
-    const glm::vec2& A,
-    const glm::vec2& B,
-    const glm::vec2& C
-) {
-    // Compute barycentric coordinates via Cramer's rule
-    // lambda0 -> A, lambda1 -> B, lambda2 -> C
+// Barycentric coords: point as weighted combination of triangle vertices
+// how much of point P belongs to each vertex of triangle ABC
+// Computes bary coords using cramer's rule
+// Returns: lambda0 -> A, lambda1 -> B, lambda2 -> C (Weight of each point) where total = 1
+static glm::vec3 barycentricCoords(const glm::vec2& P, const glm::vec2& A, const glm::vec2& B, const glm::vec2& C) {
+
     float denom = (B.y - C.y) * (A.x - C.x) + (C.x - B.x) * (A.y - C.y);
     if (std::abs(denom) < 1e-10f) {
         return glm::vec3(-1.0f); // degenerate triangle
@@ -254,46 +232,35 @@ static glm::vec3 barycentricCoords(
     float lambda2 = 1.0f - lambda0 - lambda1;
  
     return glm::vec3(lambda0, lambda1, lambda2);
+    
 }
  
-static void performPick(
-    double glfwMouseX,
-    double glfwMouseY,
-    const SceneData& scene,
-    int winW,  // window (screen) width  — for HiDPI scale
-    int winH,  // window (screen) height — for mouse Y flip
-    int fbW,   // framebuffer width      — for projectToScreen
-    int fbH    // framebuffer height     — for projectToScreen & Y flip
-) {
-    // std::cerr << "pick called: mouse=(" << glfwMouseX << "," << glfwMouseY
-    //           << ") win=(" << winW << "x" << winH
-    //           << ") fb=(" << fbW << "x" << fbH << ")\n";
+// PICKING - Check which triangle is clicked and return 3d point
+// Projetc all vertices to screen
+// then for each triangle, check if mouse is inside using barycentric coords + compute depth
+static void performPick(double glfwMouseX, double glfwMouseY, const SceneData& scene, int winW, int winH, int fbW, int fbH) {
  
+    // 3D -> screen space (3D vertex -> 2D pixel coord)
     // Project all vertices into framebuffer pixel space
     std::vector<glm::vec3> screenVerts(scene.vertices.size());
+
     for (size_t i = 0; i < scene.vertices.size(); ++i) {
-        screenVerts[i] = projectToScreen(
-            scene.vertices[i],
-            scene.modelViewMatrix,
-            scene.projectionMatrix,
-            fbW, fbH   // use FRAMEBUFFER size to match glViewport
-        );
+        screenVerts[i] = projectToScreen(scene.vertices[i], scene.modelViewMatrix, scene.projectionMatrix, fbW, fbH);
     }
  
-    // Scale GLFW cursor (screen coords) → framebuffer pixel coords
-    // On HiDPI/Retina displays fbW/winW == 2 (or similar scale factor)
+    // Scale mouse coords to framebuffer pixel coords
+    // Retina screens window size is not the pixel resolution
     float scaleX = (float)fbW / (float)winW;
     float scaleY = (float)fbH / (float)winH;
- 
     float mx = (float)glfwMouseX * scaleX;
-    // Flip Y: GLFW origin is top-left, OpenGL/framebuffer origin is bottom-left
-    float my = (float)fbH - (float)glfwMouseY * scaleY;
+    float my = (float)fbH - (float)glfwMouseY * scaleY; // flip Y axis since originGLFW = top-left, originOPENGL = bottom-left
  
     int bestTriangle = -1;
     float bestZ = std::numeric_limits<float>::max();
     glm::vec3 bestBary;
     glm::vec3 best3D;
  
+    // Loop through every triangle in mesh (i0, i1, i2) & get their 2D screen positions
     int numTriangles = (int)(scene.indices.size() / 3);
     for (int t = 0; t < numTriangles; ++t) {
         unsigned int i0 = scene.indices[t * 3 + 0];
@@ -303,29 +270,27 @@ static void performPick(
         glm::vec3 s0 = screenVerts[i0];
         glm::vec3 s1 = screenVerts[i1];
         glm::vec3 s2 = screenVerts[i2];
- 
-        glm::vec3 bary = barycentricCoords(
-            glm::vec2(mx, my),
-            glm::vec2(s0),
-            glm::vec2(s1),
-            glm::vec2(s2)
-        );
+
+        // Check if mouse is inside triangle using barycentric coordinates (2D point in triangle test)
+        glm::vec3 bary = barycentricCoords(glm::vec2(mx, my), glm::vec2(s0), glm::vec2(s1), glm::vec2(s2));
  
         // Point is inside the triangle only when all coords are non-negative
+        // Negative weight => mouse outside triangle
         if (bary.x < 0.0f || bary.y < 0.0f || bary.z < 0.0f) {
             continue;
         }
  
-        // Interpolated depth — pick the front-most (smallest NDC z)
+        // DEPTH TEST
+        // Calculate interpolated depth with barycentric weights => how far point is from camera
+        // Pick closest triangle 
         float z = bary.x * s0.z + bary.y * s1.z + bary.z * s2.z;
         if (z < bestZ) {
             bestZ = z;
             bestTriangle = t;
             bestBary = bary;
  
-            best3D = bary.x * scene.vertices[i0]
-                   + bary.y * scene.vertices[i1]
-                   + bary.z * scene.vertices[i2];
+            // Reconstructed 3D click point now that where in triangle was clicked is known
+            best3D = bary.x * scene.vertices[i0] + bary.y * scene.vertices[i1] + bary.z * scene.vertices[i2];
         }
     }
  
@@ -334,14 +299,10 @@ static void performPick(
         return;
     }
  
-    std::cout
-        << bestTriangle << " "
-        << bestBary.x   << " "
-        << bestBary.y   << " "
-        << bestBary.z   << " "
-        << best3D.x     << " "
-        << best3D.y     << " "
-        << best3D.z     << "\n";
+    // triangleIndex [clicked triangle]
+    // lambda0, lambda1, lambda2 [bary coords] -> where in triangle was clicked
+    // X, Y Z - euclidian coords of exact 3D point on mesh clicked
+    std::cout << bestTriangle << " " << bestBary.x << " " << bestBary.y << " " << bestBary.z << " " << best3D.x << " " << best3D.y << " " << best3D.z << "\n";
 }
  
 static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
@@ -365,8 +326,9 @@ static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
     ps->mouseX = xpos;
     ps->mouseY = ypos;
  
+    // pick while button held down (drag)
     if (ps->mouseButtonDown) {
-        ps->needsPick = true; // pick while button held down (drag)
+        ps->needsPick = true;
     }
 }
  
@@ -907,9 +869,9 @@ void A2solution::run(const std::string& filename) {
     if (!window) return;
  
     // Compile and link all shaders
-    int phongShader   = compileAndLinkShaders(getPhongVertexShader(),   getPhongFragmentShader());
-    int flatShader    = compileAndLinkShaders(getFlatVertexShader(),    getFlatFragmentShader());
-    int circleShader  = compileAndLinkShaders(getCircleVertexShader(),  getCircleFragmentShader());
+    int phongShader = compileAndLinkShaders(getPhongVertexShader(),   getPhongFragmentShader());
+    int flatShader = compileAndLinkShaders(getFlatVertexShader(),    getFlatFragmentShader());
+    int circleShader = compileAndLinkShaders(getCircleVertexShader(),  getCircleFragmentShader());
     int voronoiShader = compileAndLinkShaders(getVoronoiVertexShader(), getVoronoiFragmentShader());
  
     // Store shaders in list to cycle through
@@ -918,9 +880,11 @@ void A2solution::run(const std::string& filename) {
     int activeShader = shaders[shaderIndex];
  
     // Create & upload mesh types to GPU
-    Mesh mesh        = createMesh(scene.vertices, scene.normals, scene.indices);
-    FlatMesh flat    = createFlatMesh(scene);
-    Mesh circleMesh  = createMeshWithBary(flat);
+    // Mesh: standard mesh with shared vertices + index buffer
+    Mesh mesh = createMesh(scene.vertices, scene.normals, scene.indices);
+    // FlatMesh + circleMesh: mesh with duplicate vertices (circle & voronoi)
+    FlatMesh flat = createFlatMesh(scene);
+    Mesh circleMesh = createMeshWithBary(flat);
  
     // =============================== //
     //        PICKING STATE SETUP      //
@@ -928,17 +892,19 @@ void A2solution::run(const std::string& filename) {
     PickingState ps;
     ps.scene = &scene;
  
-    // Store BOTH window (screen) size and framebuffer (pixel) size
+    // Store screen size (= mouse) and framebuffer size(pixels)
     // Window size: used for mouse coordinate system
     // Framebuffer size: used for projection / glViewport (differs on HiDPI/Retina)
-    glfwGetWindowSize(window,      &ps.windowWidth,      &ps.windowHeight);
+    glfwGetWindowSize(window, &ps.windowWidth, &ps.windowHeight);
     glfwGetFramebufferSize(window, &ps.framebufferWidth, &ps.framebufferHeight);
  
+    // attach picking state ps to window (allow callbacks to access it)
     glfwSetWindowUserPointer(window, &ps);
+    // register mouse events
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
     glfwSetCursorPosCallback(window,  cursorPosCallback);
  
-    // User input flags
+    // User input flags (key toggles)
     bool sKeyWasPressed = false;
     bool wKeyWasPressed = false;
     bool wireframe = false;
@@ -951,17 +917,13 @@ void A2solution::run(const std::string& filename) {
         // =============================== //
         //            USER INPUT           //
         // =============================== //
-        glfwPollEvents();
+        glfwPollEvents(); // keyboard/mouse
  
         // Process pending pick using correct window vs framebuffer sizes
-        if (ps.needsPick) {
+        if (ps.needsPick) { // mouse click/drag
             ps.needsPick = false;
-            performPick(
-                ps.mouseX, ps.mouseY,
-                scene,
-                ps.windowWidth,      ps.windowHeight,      // screen coords (mouse)
-                ps.framebufferWidth, ps.framebufferHeight   // pixel coords  (projection)
-            );
+            // find triangle, barycentric coords, 3d point
+            performPick(ps.mouseX, ps.mouseY, scene, ps.windowWidth,ps.windowHeight, ps.framebufferWidth, ps.framebufferHeight);
         }
  
         // Toggle shader with 's'
@@ -984,7 +946,7 @@ void A2solution::run(const std::string& filename) {
         if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
             glfwSetWindowShouldClose(window, true);
  
-        // Clear previous frame
+        // Clear previous frame (color & depth/z buffers)
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
  
         // Activate shader
@@ -993,22 +955,27 @@ void A2solution::run(const std::string& filename) {
         // =============================== //
         //           SET UNIFORMS          //
         // =============================== //
+        // send transformation martices to shader
         glUniformMatrix4fv(glGetUniformLocation(activeShader, "modelViewMatrix"),  1, GL_FALSE, &scene.modelViewMatrix[0][0]);
         glUniformMatrix4fv(glGetUniformLocation(activeShader, "projectionMatrix"), 1, GL_FALSE, &scene.projectionMatrix[0][0]);
  
+        // send light position, camera position, light color to shader
         glUniform3f(glGetUniformLocation(activeShader, "lightPos"),   0.0f, 0.0f, 0.0f);
         glUniform3f(glGetUniformLocation(activeShader, "viewPos"),    0.0f, 0.0f, 0.0f);
         glUniform3f(glGetUniformLocation(activeShader, "lightColor"), 1.0f, 1.0f, 1.0f);
  
         // Draw mesh depending on active shader
         if (activeShader == circleShader || activeShader == voronoiShader) {
+            // draw without incides (flat mesh)
             glBindVertexArray(circleMesh.VAO);
             glDrawArrays(GL_TRIANGLES, 0, circleMesh.indexCount);
         } else {
+            // draw using indices (shared vertex mesh)
             glBindVertexArray(mesh.VAO);
             glDrawElements(GL_TRIANGLES, mesh.indexCount, GL_UNSIGNED_INT, 0);
         }
  
+        // display rendered frame
         glfwSwapBuffers(window);
     }
  
