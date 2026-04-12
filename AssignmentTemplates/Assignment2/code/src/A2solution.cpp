@@ -67,6 +67,7 @@ struct PickingState {
     double mouseX = 0.0;
     double mouseY = 0.0;
     bool needsPick = false;
+    bool isDragging = false;
     // Screen/window coordinates (used for mouse Y flip)
     int windowWidth  = 0;
     int windowHeight = 0;
@@ -238,7 +239,7 @@ static glm::vec3 barycentricCoords(const glm::vec2& P, const glm::vec2& A, const
 // PICKING - Check which triangle is clicked and return 3d point
 // Projetc all vertices to screen
 // then for each triangle, check if mouse is inside using barycentric coords + compute depth
-static void performPick(double glfwMouseX, double glfwMouseY, const SceneData& scene, int winW, int winH, int fbW, int fbH) {
+static void performPick(double glfwMouseX, double glfwMouseY, const SceneData& scene, int winW, int winH, int fbW, int fbH, PickingState& ps) {
  
     // 3D -> screen space (3D vertex -> 2D pixel coord)
     // Project all vertices into framebuffer pixel space
@@ -302,7 +303,11 @@ static void performPick(double glfwMouseX, double glfwMouseY, const SceneData& s
     // triangleIndex [clicked triangle]
     // lambda0, lambda1, lambda2 [bary coords] -> where in triangle was clicked
     // X, Y Z - euclidian coords of exact 3D point on mesh clicked
-    std::cout << bestTriangle << " " << bestBary.x << " " << bestBary.y << " " << bestBary.z << " " << best3D.x << " " << best3D.y << " " << best3D.z << "\n";
+    if (ps.isDragging) {
+        std::cout << bestBary.x << " " << bestBary.y << " " << bestBary.z << " " << best3D.x << " " << best3D.y << " " << best3D.z << "\n";
+    } else {
+        std::cout << bestTriangle << " " << bestBary.x << " " << bestBary.y << " " << bestBary.z << " " << best3D.x << " " << best3D.y << " " << best3D.z << "\n";
+    }
 }
  
 static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods) {
@@ -315,6 +320,7 @@ static void mouseButtonCallback(GLFWwindow* window, int button, int action, int 
             // Query position NOW instead of relying on cursorPosCallback having fired
             glfwGetCursorPos(window, &ps->mouseX, &ps->mouseY);
             ps->needsPick = true;
+            ps->isDragging = false;
         }
     }
 }
@@ -329,6 +335,7 @@ static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
     // pick while button held down (drag)
     if (ps->mouseButtonDown) {
         ps->needsPick = true;
+        ps->isDragging = true;
     }
 }
  
@@ -923,7 +930,7 @@ void A2solution::run(const std::string& filename) {
         if (ps.needsPick) { // mouse click/drag
             ps.needsPick = false;
             // find triangle, barycentric coords, 3d point
-            performPick(ps.mouseX, ps.mouseY, scene, ps.windowWidth,ps.windowHeight, ps.framebufferWidth, ps.framebufferHeight);
+            performPick(ps.mouseX, ps.mouseY, scene, ps.windowWidth,ps.windowHeight, ps.framebufferWidth, ps.framebufferHeight, ps);
         }
  
         // Toggle shader with 's'
